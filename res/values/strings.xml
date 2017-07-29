@@ -1,0 +1,9 @@
+<resources>
+
+    <string name="app_name">Balance Ball</string>
+    <string name="balance_ball">Balance Ball</string>
+    <string name="start_game">Start game</string>
+    <string name="start_level">Start level:</string>
+    <string name="no_sensor">Oops! No accelerometer sensor detected.</string>
+
+</resources>

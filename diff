@@ -1,0 +1,387 @@
+Index: src/com/bingo/gravity_ball/StageInfo.java
+===================================================================
+--- src/com/bingo/gravity_ball/StageInfo.java	(revision 6)
++++ src/com/bingo/gravity_ball/StageInfo.java	(working copy)
+@@ -25,13 +25,16 @@
+ 	
+ 	private static class StageInfoHolder {
+ 		public static final StageInfo stages[] = {
+-			new StageInfo(1000, 60, 0.2f),
+-			new StageInfo(2000, 60, 0.19f),
+-			new StageInfo(5000, 60, 0.18f),
+-			new StageInfo(10000, 60, 0.17f),
+-			new StageInfo(20000, 60, 0.16f),
+-			new StageInfo(50000, 60, 0.15f),
+-			new StageInfo(100000, 60, 0.14f)
++			new StageInfo(1000, 10, 0.2f),
++			new StageInfo(2000, 15, 0.19f),
++			new StageInfo(5000, 25, 0.18f),
++			new StageInfo(10000, 40, 0.17f),
++			new StageInfo(20000, 70, 0.16f),
++			new StageInfo(50000, 150, 0.15f),
++			new StageInfo(100000, 250, 0.14f),
++			new StageInfo(200000, 450, 0.13f),
++			new StageInfo(500000, 1000, 0.12f),
++			new StageInfo(1000000, 1800, 0.11f),
+ 		};
+ 	}
+ 	
+Index: src/com/bingo/gravity_ball/MainActivity.java
+===================================================================
+--- src/com/bingo/gravity_ball/MainActivity.java	(revision 5)
++++ src/com/bingo/gravity_ball/MainActivity.java	(working copy)
+@@ -6,12 +6,11 @@
+ import android.hardware.SensorEventListener;
+ import android.hardware.SensorManager;
+ import android.os.Bundle;
+-import android.util.DisplayMetrics;
+-import android.util.Log;
+ import android.view.SurfaceHolder;
+ import android.view.SurfaceView;
++import android.widget.Toast;
+ 
+-public class MainActivity extends Activity implements SensorEventListener, SurfaceHolder.Callback {
++public class MainActivity extends Activity implements SensorEventListener, SurfaceHolder.Callback, GravityBallGame.Client {
+ 	private static final String LOG_TAG = MainActivity.class.getSimpleName();
+ 	private SensorManager sensorManager;
+ 	private Sensor accelerometer;
+@@ -74,12 +73,10 @@
+ 		if (game != null) {
+ 			return;
+ 		}
+-		DisplayMetrics metrics = new DisplayMetrics();
+-		getWindowManager().getDefaultDisplay().getMetrics(metrics);
+-		Log.d(LOG_TAG, "surfaceCreated");
+-		float density = metrics.density;
+-		game = new GravityBallGame(surface.getHolder(), surface.getWidth(), surface.getHeight(), density);
+-		game.init();
++		game = new GravityBallGame(surface.getHolder());
++		game.init(surface.getWidth(), surface.getHeight());
++		game.setClient(this);
++		game.setStage(0);
+ 		game.start();
+ 
+ 	}
+@@ -90,4 +87,15 @@
+ 			game.end();
+ 		}
+ 	}
++
++	@Override
++	public void onLevelUp() {
++		Toast.makeText(this, "Level up", Toast.LENGTH_LONG).show();
++	}
++
++	@Override
++	public void onGameOver() {
++		// TODO Auto-generated method stub
++		
++	}
+ }
+Index: src/com/bingo/gravity_ball/GravityBallGame.java
+===================================================================
+--- src/com/bingo/gravity_ball/GravityBallGame.java	(revision 6)
++++ src/com/bingo/gravity_ball/GravityBallGame.java	(working copy)
+@@ -13,29 +13,53 @@
+ 
+ public class GravityBallGame extends Game implements BallKicker.OnKickListener {
+ 
++	private static final String LOG_TAG = GravityBallGame.class.getSimpleName();
++
+ 	private static final String TEXT_DISTANCE = "Distance";
+-	private static final String TEXT_LONGEST = "Longest";
+-	private static final int TEXT_PADDING = 5;
+-	private static final int BALL_RADIUS = 30;
++	private static final String TEXT_TIME_LEFT = "Time Left";
++	private static final String TEXT_STAGE = "Level";
++	private static final int TEXT_PADDING = 10;
++	private static final int BORDER_WIDTH = 20;
++	private static final int BALL_RADIUS = 20;
++	private static final int UNIFIED_WIDTH = 320;
++	private static final int UNIFIED_HEIGHT = 480;
+ 	private Ball ball;
+-	private float distance = 0;
+-	private float longest = 0;
+-	private int stage = 0;
++	private float distance;
++	private int timeLeft;
++	private int stage;
+ 	private StageInfo stageInfo;
++	private float density;
++	private int width, height;
+ 
+-	private static final int COLORS[] = { Color.RED, Color.GREEN, Color.BLUE };
+-	private int currentColorIndex = -1;
++	private static final int COLORS[] = { Color.RED, Color.YELLOW, Color.GREEN, Color.CYAN, Color.BLUE, Color.MAGENTA };
+ 
+-	public GravityBallGame(SurfaceHolder holder, int w, int h, float density) {
+-		super(holder, w, h, density);
++	public GravityBallGame(SurfaceHolder holder) {
++		super(holder);
+ 	}
+ 
+-	public void init() {
+-		Border border = new Border(new Rect(0, 0, width - 1, height - 1),
+-				Color.WHITE, 20);
++	public void init(int width, int height) {
++		Rect rect = new Rect();
++		if (width * UNIFIED_HEIGHT > height * UNIFIED_WIDTH) {
++			density = ((float) height) / UNIFIED_HEIGHT;
++			this.height = height;
++			this.width = UNIFIED_WIDTH * height / UNIFIED_HEIGHT;
++			rect.top = 0;
++			rect.bottom = height - 1;
++			rect.left = (width - this.width) / 2;
++			rect.right = (width + this.width) / 2 - 1;
++		} else {
++			density = ((float) width) / UNIFIED_WIDTH;
++			this.width = width;
++			this.height = UNIFIED_HEIGHT * width / UNIFIED_WIDTH;
++			rect.left = 0;
++			rect.right = width - 1;
++			rect.top = (height - this.height) / 2;
++			rect.bottom = (height + this.height) / 2 - 1;
++		}
++		super.init(rect);
++		Border border = new Border(rect, Color.WHITE, BORDER_WIDTH);
+ 		addGameObject(border);
+ 		ball = new Ball(BALL_RADIUS * density, width / 2, height / 2);
+-		ball.setColor(nextColor());
+ 		addGameObject(ball);
+ 
+ 		/*
+@@ -44,25 +68,43 @@
+ 		 */
+ 	}
+ 
+-	public void setGravity(float xGravity, float yGravity) {
++	public void setStage(int stage) {
++		this.stage = stage;
++		stageInfo = StageInfo.getStageInfo(stage);
++		timeLeft = stageInfo.getTime() * 1000;
++		distance = 0;
++		ball.setColor(COLORS[stage % COLORS.length]);
++	}
+ 
+-		ball.setAcc(xGravity / 5, yGravity / 5);
++	private void stageUp() {
++		setStage(stage + 1);
++		notifyLevelUp();
++	}
+ 
++	private void restartStage() {
++		setStage(stage);
+ 	}
+ 
+-	private void restart() {
+-		/*
+-		 * for (Ball ball : balls) { ball.setColor(nextColor()); }
+-		 */
+-		distance = 0;
++	public void setGravity(float xGravity, float yGravity) {
++
++		ball.setAcc(xGravity * stageInfo.getAccCoefficient(), yGravity
++				* stageInfo.getAccCoefficient());
++
+ 	}
+ 
+ 	@Override
+ 	protected void process() {
+ 		distance += ball.getDistance();
+-		if (distance > longest) {
+-			longest = distance;
++		if (distance > stageInfo.getDistance()) {
++			stageUp();
++			return;
+ 		}
++		timeLeft -= getUpdateInterval();
++		if (timeLeft <= 0) {
++			restartStage();
++			return;
++		}
++
+ 		for (GameObject obj : getGameObjects()) {
+ 			if (obj instanceof BallKicker) {
+ 				if (obj == ball) {
+@@ -84,29 +126,46 @@
+ 		paint.setAntiAlias(true);
+ 		paint.setColor(Color.WHITE);
+ 		paint.setTextSize(20 * density);
+-		canvas.drawText(TEXT_LONGEST, 20, 60, paint);
++		canvas.drawText(TEXT_TIME_LEFT, 
++				TEXT_PADDING + BORDER_WIDTH / 2 + contentRect.left,
++				contentRect.top + 60,
++				paint);
++		
+ 		Rect bounds = new Rect();
+-		paint.getTextBounds(TEXT_DISTANCE, 0, TEXT_DISTANCE.length(), bounds);
++		String distanceText = "" + (int) distance + "/" + (int) stageInfo.getDistance();
++		paint.getTextBounds(distanceText, 0, distanceText.length(), bounds);
+ 		int textHeight = bounds.height();
+-		canvas.drawText("" + longest, 20, 60 + textHeight + TEXT_PADDING, paint);
++		String timeText = "" + timeLeft / 1000 + "/" + stageInfo.getTime();
++		canvas.drawText(timeText,
++				TEXT_PADDING + BORDER_WIDTH / 2 + contentRect.left,
++				60 + textHeight + TEXT_PADDING + contentRect.top, 
++				paint);
+ 
+-		int textWidth = bounds.width() + 40;
+-		canvas.drawText(TEXT_DISTANCE, width - textWidth - TEXT_PADDING, 60,
++		int textWidth = bounds.width();
++		canvas.drawText(distanceText,
++				contentRect.right - textWidth - TEXT_PADDING - BORDER_WIDTH / 2,
++				60 + textHeight + TEXT_PADDING + contentRect.top,
+ 				paint);
+-		canvas.drawText("" + distance, width - textWidth - TEXT_PADDING, 60
+-				+ textHeight + TEXT_PADDING, paint);
+-		paint.setColor(COLORS[currentColorIndex]);
+-	}
++		
++		paint.getTextBounds(TEXT_DISTANCE, 0, TEXT_DISTANCE.length(), bounds);
++		textWidth = bounds.width();
++		canvas.drawText(TEXT_DISTANCE,
++				contentRect.right - textWidth - TEXT_PADDING - BORDER_WIDTH / 2,
++				contentRect.top + 60,
++				paint);
+ 
+-	private int nextColor() {
+-		currentColorIndex++;
+-		currentColorIndex %= COLORS.length;
+-		return COLORS[currentColorIndex];
++		String levelText = TEXT_STAGE + " " + stage;
++		paint.getTextBounds(levelText, 0, levelText.length(), bounds);
++		textWidth = bounds.width();
++		canvas.drawText(levelText,
++				contentRect.left + (width - textWidth) / 2, 
++				contentRect.bottom - textHeight - TEXT_PADDING,
++				paint);
+ 	}
+ 
+ 	@Override
+ 	public void onKick() {
+-		restart();
++		restartStage();
+ 	}
+ 
+ }
+Index: src/com/bingo/game/Game.java
+===================================================================
+--- src/com/bingo/game/Game.java	(revision 6)
++++ src/com/bingo/game/Game.java	(working copy)
+@@ -5,40 +5,84 @@
+ 
+ import android.graphics.Canvas;
+ import android.graphics.Rect;
++import android.os.Handler;
+ import android.view.SurfaceHolder;
+ 
+ public abstract class Game {
+ 	
+-	protected int width;
+-	protected int height;
+-	protected float density;
++	public static interface Client {
++		
++		void onLevelUp();
++		
++		void onGameOver();
++	}
++	
++	private static final int DEFAULT_UPDATE_INTERVAL = 20;
++	
++	protected Rect contentRect;
+ 	private SurfaceHolder holder;
+ 	private Thread thread;
++	private int updateInterval = DEFAULT_UPDATE_INTERVAL;
+ 	private boolean paused;
+ 	private ArrayList<GameObject> gameObjs = new ArrayList<GameObject>();
++	private Client client;
++	private Handler mainThreadHandler;
+ 	
+-	public Game(SurfaceHolder holder, int w, int h, float density) {
++	public Game(SurfaceHolder holder) {
+ 		this.holder = holder;
+-		width = w;
+-		height = h;
+-		this.density = density;
++		mainThreadHandler = new Handler();
+ 	}
++	
++	public void setClient(Client client) {
++		this.client = client;
++	}
+ 
+-	public void init() {
++	public void init(Rect contentRect) {
++		this.contentRect = contentRect;
+ 	}
+ 	
++	protected void setUpdateInterval(int interval) {
++		this.updateInterval = interval;
++	}
++	
++	protected int getUpdateInterval() {
++		return this.updateInterval;
++	}
++	
++	protected void notifyLevelUp() {
++		if (client != null) {
++			final Client c = client;
++			mainThreadHandler.post(new Runnable() {
++				public void run() {
++					c.onLevelUp();
++				}
++			});
++		}
++	}
++	
++	protected void notifyGameOver() {
++		if (client != null) {
++			final Client c = client;
++			mainThreadHandler.post(new Runnable() {
++				public void run() {
++					c.onGameOver();
++				}
++			});
++		}
++	}
++	
+ 	protected void addGameObject(GameObject obj) {
+ 		gameObjs.add(obj);
+ 	}
+ 	
+ 	protected Rect update() {
+-		Rect dirtyRect = new Rect();
++		//Rect dirtyRect = new Rect();
+ 		for (GameObject obj : gameObjs) {
+ 			//dirtyRect.union(obj.update());
+ 			obj.update();
+ 		}
+ 		//return dirtyRect;
+-		return new Rect(0, 0, width - 1, height - 1);
++		return new Rect(contentRect);
+ 	}
+ 	
+ 	public List<GameObject> getGameObjects() {
+@@ -72,7 +116,7 @@
+ 			public void run() {
+ 				while (!Thread.currentThread().isInterrupted()) {
+ 					try {
+-						Thread.sleep(20);
++						Thread.sleep(updateInterval);
+ 					} catch (InterruptedException e) {
+ 					}
+ 					if (! isPaused()) {
+Index: src/com/bingo/game/Ball.java
+===================================================================
+--- src/com/bingo/game/Ball.java	(revision 6)
++++ src/com/bingo/game/Ball.java	(working copy)
+@@ -10,7 +10,7 @@
+ public class Ball extends BallKicker implements GameObject {
+ 	
+ 	private static final String LOG_TAG = Ball.class.getSimpleName();
+-	private static final boolean DEBUG = true;
++	private static final boolean DEBUG = false;
+ 
+ 	private float xAcc = 0.0f, yAcc = 0.0f;
+ 	private float xSpeed = 0.0f, ySpeed = 0.0f;
